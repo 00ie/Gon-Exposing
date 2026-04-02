@@ -6,6 +6,8 @@ LanguageCode = str
 
 def resolve_language(value: str | None) -> LanguageCode:
     normalized = (value or "").strip().lower()
+    if normalized.startswith("pt"):
+        return "pt-BR"
     if normalized.startswith("en"):
         return "en"
     return "en"
