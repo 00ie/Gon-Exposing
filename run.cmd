@@ -93,10 +93,10 @@ exit /b 0
 echo Gon Exposing Launcher
 echo.
 echo Uso:
-echo   iniciar-gon.cmd
-echo   iniciar-gon.cmd dev
-echo   iniciar-gon.cmd prod
-echo   iniciar-gon.cmd dry-run
+echo   run.cmd
+echo   run.cmd dev
+echo   run.cmd prod
+echo   run.cmd dry-run
 echo.
 echo Modos:
 echo   dev      abre backend e frontend em modo desenvolvimento
