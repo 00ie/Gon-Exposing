@@ -1,10 +1,10 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useLanguage } from "@/components/LanguageProvider";
-import { apiBase, queueAnalysis, queueHashAnalysis, queueUrlAnalysis } from "@/lib/api";
+import { checkApiHealth, queueAnalysis, queueHashAnalysis, queueUrlAnalysis } from "@/lib/api";
 
 
 type UploadMode = "file" | "url" | "hash";
@@ -88,12 +88,14 @@ function looksLikeHash(value: string) {
 export function UploadSection() {
   const { copy } = useLanguage();
   const router = useRouter();
+  const lastSubmitRef = useRef(0);
   const [mode, setMode] = useState<UploadMode>("file");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [apiStatus, setApiStatus] = useState<"checking" | "online" | "offline">("checking");
+  const submitCooldownMs = 2000;
 
   const actionLabel = useMemo(() => {
     if (mode === "url") {
@@ -111,33 +113,40 @@ export function UploadSection() {
     let active = true;
 
     async function checkApi() {
-      try {
-        const response = await fetch(`${apiBase}/health`, {
-          cache: "no-store"
-        });
-
-        if (!active) {
-          return;
-        }
-
-        setApiStatus(response.ok ? "online" : "offline");
-      } catch {
-        if (active) {
-          setApiStatus("offline");
-        }
+      const isOnline = await checkApiHealth();
+      if (active) {
+        setApiStatus(isOnline ? "online" : "offline");
       }
     }
 
     void checkApi();
+    const intervalId = window.setInterval(() => {
+      void checkApi();
+    }, 30000);
 
     return () => {
       active = false;
+      window.clearInterval(intervalId);
     };
   }, []);
+
+  function markSubmitAttempt() {
+    const now = Date.now();
+    if (now - lastSubmitRef.current < submitCooldownMs) {
+      setError(copy.upload.errors.submissionFailed);
+      return false;
+    }
+    lastSubmitRef.current = now;
+    return true;
+  }
 
   async function handleFileSubmit() {
     if (!selectedFile) {
       setError(copy.upload.errors.fileRequired);
+      return;
+    }
+
+    if (!markSubmitAttempt()) {
       return;
     }
 
@@ -159,6 +168,10 @@ export function UploadSection() {
 
     if (!trimmed) {
       setError(mode === "url" ? copy.upload.errors.urlRequired : copy.upload.errors.hashRequired);
+      return;
+    }
+
+    if (!markSubmitAttempt()) {
       return;
     }
 
@@ -253,6 +266,10 @@ export function UploadSection() {
             <div className="relative">
               <input
                 className="w-full rounded-[10px] border border-white/10 bg-white/[0.03] px-5 py-4 pr-14 font-mono text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/20"
+                autoCapitalize="none"
+                autoComplete="off"
+                autoCorrect="off"
+                maxLength={mode === "url" ? 4096 : 128}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -260,6 +277,7 @@ export function UploadSection() {
                   }
                 }}
                 placeholder={mode === "url" ? copy.upload.placeholders.url : copy.upload.placeholders.hash}
+                spellCheck={false}
                 type="text"
                 value={query}
               />
@@ -293,9 +311,9 @@ export function UploadSection() {
           }`}
         >
           {apiStatus === "online"
-            ? `${copy.upload.apiOnline}: ${apiBase}`
+            ? copy.upload.apiOnline
             : apiStatus === "offline"
-              ? `${copy.upload.apiOffline}: ${apiBase}`
+              ? copy.upload.apiOffline
               : copy.upload.apiChecking}
         </p>
 

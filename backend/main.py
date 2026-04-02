@@ -59,14 +59,35 @@ auth_service = build_auth_service(AUTH_DB_PATH)
 app = FastAPI(title="Gon Exposing API", version="0.1.0")
 
 HASH_PATTERN = re.compile(r"^[A-Fa-f0-9]{16,128}$")
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 allowed_origins = [origin.strip() for origin in os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:3000").split(",") if origin.strip()]
+normalized_allowed_origins = {origin.rstrip("/") for origin in allowed_origins}
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def get_origin_from_referer(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+
+def is_origin_allowed(origin: str | None) -> bool:
+    if not origin:
+        return True
+
+    normalized = origin.rstrip("/")
+    return "*" in normalized_allowed_origins or normalized in normalized_allowed_origins
 
 
 @app.exception_handler(RequestValidationError)
@@ -103,6 +124,28 @@ async def enforce_rate_limit(request: Request, call_next):
             {"detail": t(request.state.language, "Limite de requisicoes excedido.", "Rate limit exceeded.")},
             status_code=429,
         )
+
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def enforce_browser_origin(request: Request, call_next):
+    if request.method in UNSAFE_METHODS and request.url.path.startswith("/api/v1/"):
+        language = getattr(request.state, "language", resolve_language(request.headers.get("accept-language")))
+        origin = request.headers.get("origin")
+        referer_origin = get_origin_from_referer(request.headers.get("referer"))
+
+        if origin and not is_origin_allowed(origin):
+            return JSONResponse(
+                {"detail": t(language, "Origem nao autorizada.", "Origin not allowed.")},
+                status_code=403,
+            )
+
+        if not origin and referer_origin and not is_origin_allowed(referer_origin):
+            return JSONResponse(
+                {"detail": t(language, "Origem nao autorizada.", "Origin not allowed.")},
+                status_code=403,
+            )
 
     return await call_next(request)
 
@@ -406,6 +449,11 @@ async def list_public_feed(
 
 @app.websocket("/ws/analysis/{task_id}")
 async def analysis_progress_stream(websocket: WebSocket, task_id: str):
+    origin = websocket.headers.get("origin")
+    if origin and not is_origin_allowed(origin):
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
     last_snapshot = None
     language = resolve_language(websocket.headers.get("accept-language"))

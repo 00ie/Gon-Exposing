@@ -186,6 +186,7 @@ export type AnalysisResult = {
 };
 
 export const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const websocketBase = apiBase.replace(/^http/i, "ws");
 
 function normalizeLanguage(value: string | null | undefined): LanguageCode | null {
   if (value === "en" || value === "pt-BR") {
@@ -236,6 +237,18 @@ function buildLanguageHeaders(): HeadersInit {
   };
 }
 
+export async function checkApiHealth(): Promise<boolean> {
+  try {
+    const response = await fetch(`${apiBase}/health`, {
+      cache: "no-store",
+      headers: buildLanguageHeaders(),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function queueAnalysis(file: File): Promise<QueueResponse> {
   const payload = new FormData();
   payload.append("file", file);
@@ -258,14 +271,14 @@ export async function queueAnalysis(file: File): Promise<QueueResponse> {
       throw new Error(
         error.message === "Failed to fetch"
           ? localize(
-              `Nao consegui conectar ao backend em ${apiBase}. Inicie a API e reinicie o frontend se mudou NEXT_PUBLIC_API_URL.`,
-              `I could not connect to the backend at ${apiBase}. Start the API and restart the frontend if NEXT_PUBLIC_API_URL changed.`
+              "Nao consegui conectar ao servico de analise. Verifique se a API esta online e se o deploy foi atualizado.",
+              "I could not connect to the analysis service. Verify that the API is online and that the deployment was updated."
             )
           : error.message
       );
     }
 
-    throw new Error(localize(`Nao consegui conectar ao backend em ${apiBase}.`, `I could not connect to the backend at ${apiBase}.`));
+    throw new Error(localize("Nao consegui conectar ao servico de analise.", "I could not connect to the analysis service."));
   }
 }
 
@@ -291,14 +304,14 @@ export async function queueUrlAnalysis(url: string): Promise<QueueResponse> {
       throw new Error(
         error.message === "Failed to fetch"
           ? localize(
-              `Nao consegui conectar ao backend em ${apiBase}. Inicie a API e reinicie o frontend se mudou NEXT_PUBLIC_API_URL.`,
-              `I could not connect to the backend at ${apiBase}. Start the API and restart the frontend if NEXT_PUBLIC_API_URL changed.`
+              "Nao consegui conectar ao servico de analise. Verifique se a API esta online e se o deploy foi atualizado.",
+              "I could not connect to the analysis service. Verify that the API is online and that the deployment was updated."
             )
           : error.message
       );
     }
 
-    throw new Error(localize(`Nao consegui conectar ao backend em ${apiBase}.`, `I could not connect to the backend at ${apiBase}.`));
+    throw new Error(localize("Nao consegui conectar ao servico de analise.", "I could not connect to the analysis service."));
   }
 }
 
@@ -324,14 +337,14 @@ export async function queueHashAnalysis(hash: string): Promise<QueueResponse> {
       throw new Error(
         error.message === "Failed to fetch"
           ? localize(
-              `Nao consegui conectar ao backend em ${apiBase}. Inicie a API e reinicie o frontend se mudou NEXT_PUBLIC_API_URL.`,
-              `I could not connect to the backend at ${apiBase}. Start the API and restart the frontend if NEXT_PUBLIC_API_URL changed.`
+              "Nao consegui conectar ao servico de analise. Verifique se a API esta online e se o deploy foi atualizado.",
+              "I could not connect to the analysis service. Verify that the API is online and that the deployment was updated."
             )
           : error.message
       );
     }
 
-    throw new Error(localize(`Nao consegui conectar ao backend em ${apiBase}.`, `I could not connect to the backend at ${apiBase}.`));
+    throw new Error(localize("Nao consegui conectar ao servico de analise.", "I could not connect to the analysis service."));
   }
 }
 
@@ -348,7 +361,7 @@ export async function getAnalysis(taskId: string): Promise<AnalysisResult> {
 
     return response.json();
   } catch {
-    throw new Error(localize(`Nao foi possivel carregar o resultado da analise em ${apiBase}.`, `Could not load the analysis result from ${apiBase}.`));
+    throw new Error(localize("Nao foi possivel carregar o resultado da analise.", "Could not load the analysis result."));
   }
 }
 
@@ -365,7 +378,7 @@ export async function getRecentScans(limit = 10): Promise<ScanSummary[]> {
 
     return response.json();
   } catch {
-    throw new Error(localize(`Nao foi possivel carregar as analises recentes em ${apiBase}.`, `Could not load recent analyses from ${apiBase}.`));
+    throw new Error(localize("Nao foi possivel carregar as analises recentes.", "Could not load recent analyses."));
   }
 }
 
@@ -382,7 +395,7 @@ export async function searchScans(query: string, limit = 20): Promise<ScanSummar
 
     return response.json();
   } catch {
-    throw new Error(localize(`Nao foi possivel pesquisar no indice em ${apiBase}.`, `Could not search the index at ${apiBase}.`));
+    throw new Error(localize("Nao foi possivel pesquisar no indice.", "Could not search the index."));
   }
 }
 
@@ -402,11 +415,10 @@ export async function getPublicFeed(query = "", limit = 24): Promise<ScanSummary
 
     return response.json();
   } catch {
-    throw new Error(localize(`Nao foi possivel carregar o feed publico em ${apiBase}.`, `Could not load the public feed from ${apiBase}.`));
+    throw new Error(localize("Nao foi possivel carregar o feed publico.", "Could not load the public feed."));
   }
 }
 
 export function getWebSocketUrl(path: string): string {
-  const base = apiBase.replace(/^http/, "ws");
-  return `${base}${path}`;
+  return `${websocketBase}${path}`;
 }
