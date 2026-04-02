@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY backend/requirements.txt /tmp/requirements.txt
+COPY backend/requirements-worker.txt /tmp/requirements-worker.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt -r /tmp/requirements-worker.txt
+
+COPY backend /app/backend
+
+ENV PYTHONPATH=/app
+
+CMD ["celery", "-A", "backend.celery_app:celery_app", "worker", "--loglevel=info"]
+

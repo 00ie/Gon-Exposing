@@ -1,0 +1,79 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gon_exposing
+      POSTGRES_USER: gon
+      POSTGRES_PASSWORD: exposing
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    environment:
+      BACKEND_CORS_ORIGINS: http://localhost:3000
+      MAX_UPLOAD_SIZE_MB: 25
+      JWT_SECRET: change-this-in-production
+      JWT_EXPIRES_MINUTES: 480
+      BOOTSTRAP_TOKEN: change-this-bootstrap-token
+      ALLOW_PUBLIC_REGISTRATION: "false"
+      ANONYMOUS_RATE_LIMIT_PER_HOUR: 10
+      AUTHENTICATED_RATE_LIMIT_PER_HOUR: 50
+      ENABLE_CELERY: "true"
+      ENABLE_THREAT_INTEL: "false"
+      AUTH_DB_PATH: /app/backend/data/auth.db
+      SCAN_INDEX_DB_PATH: /app/backend/data/scans.db
+      DATABASE_URL: postgresql://gon:exposing@postgres:5432/gon_exposing
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app/backend
+    depends_on:
+      - redis
+      - postgres
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ../frontend:/app/frontend
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      ENABLE_CELERY: "true"
+      ENABLE_YARA: "false"
+      ENABLE_THREAT_INTEL: "false"
+      AUTH_DB_PATH: /app/backend/data/auth.db
+      SCAN_INDEX_DB_PATH: /app/backend/data/scans.db
+      DATABASE_URL: postgresql://gon:exposing@postgres:5432/gon_exposing
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ../backend:/app/backend
+
+volumes:
+  postgres_data:
