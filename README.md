@@ -35,7 +35,6 @@ Gon Exposing is a static-first malware triage platform for files, URLs, and hash
 - [Publishing to GitHub](#publishing-to-github)
 - [Hosting options](#hosting-options)
 - [Troubleshooting](#troubleshooting)
-- [Roadmap snapshot](#roadmap-snapshot)
 - [License](#license)
 
 ## Overview
